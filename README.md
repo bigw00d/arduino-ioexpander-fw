@@ -1,2 +1,2 @@
-# arduino-sw-ioexpander
-IO Expander Device Sowfware for Arduino
+# arduino-ioexpander-fw
+IO Expander Device Firmware with Arduino
