@@ -1,6 +1,10 @@
 # arduino-ioexpander-fw
 IO Expander Device Arduino Firmware with uart
 
+## Example
+
+<img width="80%" src="./example.png" />  
+
 ## Requirement
 
 - Arduino Nano or Arduino Pro Mini
