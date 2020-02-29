@@ -12,6 +12,7 @@ IO Expander Device Arduino Firmware with uart
 |---|---|---|
 |3V3 |3V3  ||
 |GND  |GND  ||
+|GPIO  | /INT ||
 |TX  | RX ||
 |RX  | TX ||
 
