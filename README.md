@@ -1,7 +1,7 @@
 # arduino-ioexpander-fw
 IO Expander Device Arduino Firmware with UART
 
-## Example
+## Overview
 
 <img width="80%" src="./img/example.png" />  
 
@@ -24,7 +24,9 @@ IO Expander Device Arduino Firmware with UART
 ## Usage 
  - Use arduino-ioexpander-lib (Arduino Library. see [arduino-ioexpander-lib](https://github.com/bigw00d/arduino-ioexpander-lib))
 
-## Sequences 
+## Description
+
+### Sequences 
 <img width="80%" src="./img/TransferSequence.png" />  
 
  * DATA is 8bit  
@@ -32,7 +34,7 @@ IO Expander Device Arduino Firmware with UART
  * ADR1:0x1D(7bit), ADR2:0x1E(7bit), W=0b0, R=0b1  
  * ACK:0x06, NACK:0x15  
 
-## Register Maps 
+### Register Maps 
 <img width="80%" src="./img/RegisterMaps.png" />  
 
  * Reading Register: Write sequence(Register Address) -> Read Sequence  
