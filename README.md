@@ -3,7 +3,7 @@ IO Expander Device Arduino Firmware with UART
 
 ## Overview
 
-<img width="80%" src="./img/example.png" />  
+<img width="80%" src="./img/overview.png" />  
 
 ## Requirement
 
