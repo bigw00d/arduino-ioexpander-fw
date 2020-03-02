@@ -10,7 +10,12 @@ IO Expander Device Arduino Firmware with UART
 - Arduino Nano or Arduino Pro Mini
 - Arduino IDE (Version: 1.8.5)
 
-##  Pin connections
+## Usage 
+ - Use arduino-ioexpander-lib (Arduino Library. see [arduino-ioexpander-lib](https://github.com/bigw00d/arduino-ioexpander-lib))
+
+## Description
+
+###  Pin connections
 
 |Host Device  |IO expander Device  |Note  |
 |---|---|---|
@@ -20,11 +25,6 @@ IO Expander Device Arduino Firmware with UART
 |TX  | RX ||
 |RX  | TX ||
 |GPIO  | /START |Host -> IO Ex|
-
-## Usage 
- - Use arduino-ioexpander-lib (Arduino Library. see [arduino-ioexpander-lib](https://github.com/bigw00d/arduino-ioexpander-lib))
-
-## Description
 
 ### Sequences 
 <img width="80%" src="./img/TransferSequence.png" />  
