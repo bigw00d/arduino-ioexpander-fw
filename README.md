@@ -1,5 +1,5 @@
 # arduino-ioexpander-fw
-IO Expander Device Arduino Firmware with uart
+IO Expander Device Arduino Firmware with UART
 
 ## Example
 
