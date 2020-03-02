@@ -34,3 +34,5 @@ IO Expander Device Arduino Firmware with UART
 
 ## Register Maps 
 <img width="80%" src="./img/RegisterMaps.png" />  
+
+ * Reading Register: Write sequence(Register Address) -> Read Sequence  
