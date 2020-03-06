@@ -29,11 +29,11 @@ IO Expander Device Arduino Firmware with UART
 <img width="80%" src="./img/TransferSequence.png" />  
 
  * DATA is 8bit  
- * First DATA is Register Address  
- * ADR1:0x1D(7bit), 　ADR2:0x1E(7bit),　W=0b0,　R=0b1  
- * ACK:0x06,　NACK:0x15  
+ * First DATA is Function Address  
+ * ADR1 : 0x1D( 7bit ), ADR2 : 0x1E( 7bit ), W=0b0, R=0b1  
+ * ACK : 0x06, ACK:0x15  
 
-### Register Maps 
-<img width="80%" src="./img/RegisterMaps.png" />  
+### Function Maps 
+<img width="80%" src="./img/FunctionMaps.png" />  
 
- * Reading Register: Write sequence(Register Address) -> Read Sequence  
+ * Reading I2C Data: Write sequence(Slave Address, Read Size) -> Read Sequence  
