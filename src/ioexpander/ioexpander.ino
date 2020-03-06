@@ -25,6 +25,50 @@
 #define CMD_SOFT_RESET 0xfe
 
 /**
+ * I2C
+ */
+void write_i2c_byte(uint8_t adr, uint8_t val)
+{
+  Wire.beginTransmission(adr);
+  Wire.write(val);
+  Wire.endTransmission();  
+}
+
+#define READ_MAX_LEN 16
+uint8_t readData[READ_MAX_LEN];
+uint8_t cmdCnt;
+
+uint8_t read_i2c_block(uint8_t adr, uint8_t len) {
+  delay(100);
+
+  cmdCnt = 0;
+  Wire.requestFrom(adr, len);
+  while (Wire.available()) { // slave may send less than requested
+    char c = Wire.read(); // receive a byte as character
+    readData[cmdCnt] = c;
+    cmdCnt++;
+  }
+
+  return cmdCnt;  
+}
+
+uint8_t read_i2c_block_data(uint8_t adr, uint8_t reg, uint8_t len) {
+  write_i2c_byte(adr, reg);
+  delay(100);
+
+  cmdCnt = 0;
+  Wire.requestFrom(adr, len);
+  while (Wire.available()) { // slave may send less than requested
+    char c = Wire.read(); // receive a byte as character
+    readData[cmdCnt] = c;
+    cmdCnt++;
+  }
+
+  return cmdCnt;  
+}
+
+
+/**
  * Serial Message(for debug)
  */
 void SerialHexPrint(char n) {
@@ -32,6 +76,8 @@ void SerialHexPrint(char n) {
   if ( n >= 0 )Serial.print(n < 16 ? "0" : "");
   Serial.print((n & 0x000000FF), HEX);
 }
+
+#define UART_CMD_PREAMBLE 0x5A
 
 SoftwareSerial mySerial(10, 11); // RX, TX = D10, D11
 
@@ -42,33 +88,137 @@ char readUartData[RW_DATA_MAX_SIZE];
 int sendCnt;
 char sendData[RW_DATA_MAX_SIZE];
 
+enum UART_FUNC_TYPE1 {
+  UART_FUNC_GPIO = 0,
+  UART_FUNC_IO_DIR,
+  UART_FUNC_INTEN,
+  UART_FUNC_INTF,
+  UART_FUNC_DEFAULT,
+  UART_FUNC_MODE,
+  UART_FUNC_TYPE1_NUM,
+};
+
+enum UART_FUNC_TYPE2 {
+  UART_FUNC_ADD1 = 0,
+  UART_FUNC_IO_I2C1_W,
+  UART_FUNC_IO_I2C1_R,
+  UART_FUNC_TYPE2_NUM,
+};
+
 /**
- * Task handling UART Command 
+ * UART Command Register
  */
-void uartTask() {
-  readCnt = 0;
-  while (mySerial.available()) {
-    int n = mySerial.read();
-    readUartData[readCnt] = n;
-    readCnt++;
-  }
-  if(readCnt > 0) {
-    sendData[sendCnt++] = 0x06; // send ACK
+uint8_t uartCommRegs1[UART_FUNC_TYPE1_NUM] = {
+  0x00,               // UART_FUNC_GPIO
+  0x00,               // UART_FUNC_IO_DIR
+  0x00,               // UART_FUNC_INTEN
+  0x00,               // UART_FUNC_INTF
+  0x00,               // UART_FUNC_DEFAULT
+  0x00,               // UART_FUNC_MODE
+};
+uint8_t uartCommRegs2[UART_FUNC_TYPE2_NUM] = {
+  0x00,               // UART_FUNC_ADD1
+  0x00,               // UART_FUNC_IO_I2C1_W
+};
 
-    #ifdef ENABLE_DEBUG_OUT
-    // print received data
-    for(int i=0; i<readCnt; ++i) {
-      int n = readUartData[i];
-      SerialHexPrint(n);
-      Serial.print(" ");
+// UART Command Header
+#define UART_CMD_W ((UART_CMD_PREAMBLE << 1) + 0)  // uart write command
+#define UART_CMD_R ((UART_CMD_PREAMBLE << 1) + 1)  // uart read command
+
+// UART Command Register Address
+#define UART_CMD_FUNC_TYPE1        (0x00)
+#define UART_CMD_FUNC_TYPE2        (0x10)
+#define UART_CMD_FUNC_I2C1_WRITE     (UART_CMD_FUNC_TYPE2 | (UART_FUNC_IO_I2C1_W+1))
+#define UART_CMD_FUNC_I2C1_READ     (UART_CMD_FUNC_TYPE2 | (UART_FUNC_IO_I2C1_R+1))
+
+#define UART_CMD_SIZE_OFST 2
+#define I2C_ADR_OFST 3
+#define I2C_DATA_OFST 4
+#define I2C_READ_LEN_OFST 3
+
+uint8_t i2cReadSlaveAddr;
+
+void handleReadI2C(uint8_t *readUartData, int len) {
+  if (len == 3) {
+    Serial.print("read_i2c_block :");
+    Serial.print(i2cReadSlaveAddr);
+    Serial.print(", ");
+    Serial.println(readUartData[UART_CMD_SIZE_OFST]);
+    read_i2c_block(i2cReadSlaveAddr, readUartData[UART_CMD_SIZE_OFST]);
+  }
+  else {
+    // no impl
+  }
+}
+
+void handleReadSequence(uint8_t *readUartData, int len) {
+  switch(readUartData[1]){ // DATA0(Function No.)
+    case UART_CMD_FUNC_I2C1_READ:
+      handleReadI2C(readUartData, len);;
+      break;
+    default:
+      // handleHciEvent no impl
+      break;
+  }
+}
+
+void handleReadI2CAddless(uint8_t *readUartData, int len) {
+  if (len == 4) {
+    if (readUartData[UART_CMD_SIZE_OFST] == 1) {
+      i2cReadSlaveAddr = readUartData[I2C_ADR_OFST];
+      Serial.print("i2cReadSlaveAddr :");
+      Serial.print(readUartData[I2C_ADR_OFST]);
     }
-    Serial.println(" :receive");
-    #endif // ENABLE_DEBUG_OUT
-
-    readCnt = 0;
+    else {
+      // no impl
+    }
   }
+}
 
-  // send
+void handleWriteI2C(uint8_t *readUartData, int len) {
+  if (len == 5) {
+    if (readUartData[UART_CMD_SIZE_OFST] == 1) {
+      Serial.print("write_i2c_byte :");
+      Serial.print(readUartData[I2C_ADR_OFST]);
+      Serial.print(", ");
+      Serial.println(readUartData[I2C_DATA_OFST]);
+      write_i2c_byte(readUartData[I2C_ADR_OFST], readUartData[I2C_DATA_OFST]);
+    }
+    else {
+      // no impl
+    }
+  }
+}
+
+void handleWriteSequence(uint8_t *readUartData, int len) {
+  switch(readUartData[1]){ // DATA0(Function No.)
+    case UART_CMD_FUNC_I2C1_WRITE:
+      handleWriteI2C(readUartData, len);;
+      break;
+    case UART_CMD_FUNC_I2C1_READ:
+      handleReadI2CAddless(readUartData, len);;
+      break;
+    default:
+      // handleHciEvent no impl
+      break;
+  }
+}
+
+void handleUartReceiveData(uint8_t *readUartData, int len) {
+  switch(readUartData[0]){ //header
+    case UART_CMD_W:
+      handleWriteSequence(readUartData, len);;
+      break;
+    case UART_CMD_R:
+      handleReadSequence(readUartData, len);;
+      break;
+    default:
+      // handleHciEvent no impl
+      break;
+  }
+}
+
+void sendUartData() {
   if(sendCnt > 0) {
       for(int i=0; i<sendCnt; ++i) {
         mySerial.write(sendData[i]);
@@ -86,6 +236,39 @@ void uartTask() {
   }
 }
 
+/**
+ * Task handling UART Command 
+ */
+void uartTask() {
+  readCnt = 0;
+  while (mySerial.available()) {
+    int n = mySerial.read();
+    readUartData[readCnt] = n;
+    readCnt++;
+  }
+  if(readCnt > 0) {
+    #ifdef ENABLE_DEBUG_OUT
+    // print received data
+    for(int i=0; i<readCnt; ++i) {
+      int n = readUartData[i];
+      SerialHexPrint(n);
+      Serial.print(" ");
+    }
+    Serial.println(" :receive");
+    #endif // ENABLE_DEBUG_OUT
+
+    //reply
+    sendData[sendCnt++] = 0x06; // send ACK
+    sendUartData();
+
+    //decode received data
+    // handleUartReceiveData(readUartData, readCnt);
+
+    readCnt = 0;
+  }
+
+}
+
 
 /**
  * Start Interrupt(~START)
@@ -96,34 +279,6 @@ void startNow(){           // Interrupt service routine or ISR
   startState = 1;
 }
 
-/**
- * I2C
- */
-void write_i2c_byte(uint8_t adr, uint8_t val)
-{
-  Wire.beginTransmission(adr);
-  Wire.write(val);
-  Wire.endTransmission();  
-}
-
-#define READ_MAX_LEN 16
-uint8_t readData[READ_MAX_LEN];
-uint8_t cmdCnt;
-
-uint8_t read_i2c_block_data(uint8_t adr, uint8_t reg, uint8_t len) {
-  write_i2c_byte(adr, reg);
-  delay(100);
-
-  cmdCnt = 0;
-  Wire.requestFrom(adr, len);
-  while (Wire.available()) { // slave may send less than requested
-    char c = Wire.read(); // receive a byte as character
-    readData[cmdCnt] = c;
-    cmdCnt++;
-  }
-
-  return cmdCnt;  
-}
 
 void setup()
 {
