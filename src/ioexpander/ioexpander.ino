@@ -141,10 +141,26 @@ uint8_t i2cReadSlaveAddr;
 void handleReadI2C(uint8_t *readUartData, int len) {
   if (len == 3) {
     Serial.print("read_i2c_block :");
-    Serial.print(i2cReadSlaveAddr);
+    SerialHexPrint(i2cReadSlaveAddr);
     Serial.print(", ");
-    Serial.println(readUartData[UART_CMD_SIZE_OFST]);
-    read_i2c_block(i2cReadSlaveAddr, readUartData[UART_CMD_SIZE_OFST]);
+    SerialHexPrint(readUartData[UART_CMD_SIZE_OFST]);
+    Serial.println("");
+    uint8_t readSize = read_i2c_block(i2cReadSlaveAddr, readUartData[UART_CMD_SIZE_OFST]);
+
+    //test
+    if(readSize > 0) {
+      uint16_t tmp = readData[0];
+      tmp = tmp << 8;
+      tmp = tmp | readData[1];
+      tmp = tmp & 0xFFFC;
+
+      float temp = -46.85 + (175.72 * tmp / 65536);
+
+      Serial.print("Temperature: ");
+      Serial.print(temp, 1);
+      Serial.println(" C");
+    }
+
   }
   else {
     // no impl
@@ -167,7 +183,7 @@ void handleReadI2CAddless(uint8_t *readUartData, int len) {
     if (readUartData[UART_CMD_SIZE_OFST] == 1) {
       i2cReadSlaveAddr = readUartData[I2C_ADR_OFST];
       Serial.print("i2cReadSlaveAddr :");
-      Serial.print(readUartData[I2C_ADR_OFST]);
+      Serial.println(readUartData[I2C_ADR_OFST]);
     }
     else {
       // no impl
@@ -177,11 +193,12 @@ void handleReadI2CAddless(uint8_t *readUartData, int len) {
 
 void handleWriteI2C(uint8_t *readUartData, int len) {
   if (len == 5) {
-    if (readUartData[UART_CMD_SIZE_OFST] == 1) {
+    if (readUartData[UART_CMD_SIZE_OFST] == 2) {
       Serial.print("write_i2c_byte :");
-      Serial.print(readUartData[I2C_ADR_OFST]);
+      SerialHexPrint(readUartData[I2C_ADR_OFST]);
       Serial.print(", ");
-      Serial.println(readUartData[I2C_DATA_OFST]);
+      SerialHexPrint(readUartData[I2C_ADR_OFST]);
+      Serial.println("");
       write_i2c_byte(readUartData[I2C_ADR_OFST], readUartData[I2C_DATA_OFST]);
     }
     else {
@@ -205,6 +222,9 @@ void handleWriteSequence(uint8_t *readUartData, int len) {
 }
 
 void handleUartReceiveData(uint8_t *readUartData, int len) {
+  Serial.print("handleUartReceiveData  len:");
+  SerialHexPrint(len);
+  Serial.println("");
   switch(readUartData[0]){ //header
     case UART_CMD_W:
       handleWriteSequence(readUartData, len);;
@@ -262,7 +282,7 @@ void uartTask() {
     sendUartData();
 
     //decode received data
-    // handleUartReceiveData(readUartData, readCnt);
+    handleUartReceiveData(readUartData, readCnt);
 
     readCnt = 0;
   }
