@@ -130,16 +130,45 @@ uint8_t uartCommRegs2[UART_FUNC_TYPE2_NUM] = {
 #define UART_CMD_FUNC_TYPE2        (0x10)
 #define UART_CMD_FUNC_I2C1_WRITE     (UART_CMD_FUNC_TYPE2 | (UART_FUNC_IO_I2C1_W+1))
 #define UART_CMD_FUNC_I2C1_READ     (UART_CMD_FUNC_TYPE2 | (UART_FUNC_IO_I2C1_R+1))
+#define UART_CMD_FUNC_ADC_READ     (UART_CMD_FUNC_TYPE2 | (UART_FUNC_ADD1+1))
 
 #define UART_CMD_SIZE_OFST 2
 #define I2C_ADR_OFST 3
 #define I2C_DATA_OFST 4
 #define I2C_READ_LEN_OFST 3
 
+/**
+ * ADC Handler
+ */
+int sensorPin = A0;    // select the input pin for the potentiometer
+int sensorValue = 0;  // variable to store the value coming from the sensor
+
+void handleReadADC(uint8_t *readUartData, int len) {
+  if ( (len == 3) && (readUartData[UART_CMD_SIZE_OFST] == 2) ) {
+    Serial.println("analogRead");
+    sensorValue = analogRead(sensorPin);
+
+    //reply
+    uint16_t u16SensorVal = (uint16_t)sensorValue;
+    sendData[sendCnt++] = (uint8_t)((u16SensorVal >> 8) & 0x00FF); // send D17...D8
+    sendData[sendCnt++] = (uint8_t)(u16SensorVal & 0x00FF); // send D7...D0
+    sendUartData();
+
+    // //test
+    // Serial.println(sensorValue);
+  }
+  else {
+    // no impl
+  }
+}
+
+/**
+ * I2C Handler
+ */
 uint8_t i2cReadSlaveAddr;
 
 void handleReadI2C(uint8_t *readUartData, int len) {
-  if (len == 3) {
+  if ( len == 3 ) {
     Serial.print("read_i2c_block :");
     SerialHexPrint(i2cReadSlaveAddr);
     Serial.print(", ");
@@ -147,19 +176,27 @@ void handleReadI2C(uint8_t *readUartData, int len) {
     Serial.println("");
     uint8_t readSize = read_i2c_block(i2cReadSlaveAddr, readUartData[UART_CMD_SIZE_OFST]);
 
-    //test
-    if(readSize > 0) {
-      uint16_t tmp = readData[0];
-      tmp = tmp << 8;
-      tmp = tmp | readData[1];
-      tmp = tmp & 0xFFFC;
-
-      float temp = -46.85 + (175.72 * tmp / 65536);
-
-      Serial.print("Temperature: ");
-      Serial.print(temp, 1);
-      Serial.println(" C");
+    if (readSize > 0) {
+      //reply
+      for (int i=0; i<readUartData[UART_CMD_SIZE_OFST]; ++i) {
+        sendData[sendCnt++] = readData[i];
+      }
+      sendUartData();
     }
+
+    // //test
+    // if(readSize > 0) {
+    //   uint16_t tmp = readData[0];
+    //   tmp = tmp << 8;
+    //   tmp = tmp | readData[1];
+    //   tmp = tmp & 0xFFFC;
+
+    //   float temp = -46.85 + (175.72 * tmp / 65536);
+
+    //   Serial.print("Temperature: ");
+    //   Serial.print(temp, 1);
+    //   Serial.println(" C");
+    // }
 
   }
   else {
@@ -171,6 +208,9 @@ void handleReadSequence(uint8_t *readUartData, int len) {
   switch(readUartData[1]){ // DATA0(Function No.)
     case UART_CMD_FUNC_I2C1_READ:
       handleReadI2C(readUartData, len);;
+      break;
+    case UART_CMD_FUNC_ADC_READ:
+      handleReadADC(readUartData, len);;
       break;
     default:
       // handleHciEvent no impl
@@ -282,7 +322,7 @@ void uartTask() {
     sendUartData();
 
     //decode received data
-    handleUartReceiveData(readUartData, readCnt);
+    handleUartReceiveData((uint8_t *)readUartData, readCnt);
 
     readCnt = 0;
   }
