@@ -40,3 +40,5 @@ IO Expander Device Arduino Firmware with UART
 ## Port Assignment
 
 <img width="50%" src="./img/PortAsignArduinoNano.png" />  
+
+ * Supports interrupts on Digital0 only.
