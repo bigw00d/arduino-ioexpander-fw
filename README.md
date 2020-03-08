@@ -36,6 +36,7 @@ IO Expander Device Arduino Firmware with UART
 <img width="80%" src="./img/FunctionMaps.png" />  
 
  * Reading I2C Data: Write sequence(Write Slave Address, Read Length) -> Read Sequence 
+ * IO_DIR : OUT = 0b1, IN = 0b0 
 
 ## Port Assignment
 
