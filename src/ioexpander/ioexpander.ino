@@ -128,8 +128,8 @@ uint8_t uartCommRegs2[UART_FUNC_TYPE2_NUM] = {
 // UART Command Register Address
 #define UART_CMD_FUNC_TYPE1        (0x00)
 #define UART_CMD_FUNC_TYPE2        (0x10)
-#define UART_CMD_FUNC_GPIO_WRITE     (UART_CMD_FUNC_TYPE1 | (UART_FUNC_GPIO+1))
-#define UART_CMD_FUNC_IODIR_WRITE     (UART_CMD_FUNC_TYPE1 | (UART_FUNC_IO_DIR+1))
+#define UART_CMD_FUNC_GPIO     (UART_CMD_FUNC_TYPE1 | (UART_FUNC_GPIO+1))
+#define UART_CMD_FUNC_IODIR     (UART_CMD_FUNC_TYPE1 | (UART_FUNC_IO_DIR+1))
 #define UART_CMD_FUNC_I2C1_WRITE     (UART_CMD_FUNC_TYPE2 | (UART_FUNC_IO_I2C1_W+1))
 #define UART_CMD_FUNC_I2C1_READ     (UART_CMD_FUNC_TYPE2 | (UART_FUNC_IO_I2C1_R+1))
 #define UART_CMD_FUNC_ADC_READ     (UART_CMD_FUNC_TYPE2 | (UART_FUNC_ADD1+1))
@@ -149,13 +149,14 @@ void handleWriteGpio(uint8_t *readUartData, int len) {
     char PtD = ((readUartData[GPIO_WRITE_OFST] << 3) & 0b11111000); //Digital0..4 -> PTD7...D3
     char PtB = ((readUartData[GPIO_WRITE_OFST] >> 5) & 0b00000011); //Digital5,6 -> PTB0, B1
     PtB |= ((readUartData[GPIO_WRITE_OFST] >> 3) & 0b00010000); //Digital7 -> PTB4
-    Serial.print("PtD :");
-    SerialHexPrint(PtD);
-    Serial.print(", PtB : ");
-    SerialHexPrint(PtB);
+    PORTD = (PORTD & ~(0b11111000)) | PtD;
+    PORTB = (PORTB & ~(0b00010011)) | PtB;
+
+    Serial.print("PORTD :");
+    SerialHexPrint(PORTD);
+    Serial.print(", PORTB : ");
+    SerialHexPrint(PORTB);
     Serial.println("");
-    PORTD = PtD;
-    PORTB = PtB;
   }
 }
 
@@ -165,13 +166,52 @@ void handleWriteIoDir(uint8_t *readUartData, int len) {
     char DdrD = ((readUartData[GPIO_WRITE_OFST] << 3) & 0b11111000); //Digital0..4 -> PTD7...D3
     char DdrB = ((readUartData[GPIO_WRITE_OFST] >> 5) & 0b00000011); //Digital5,6 -> PTB0, B1
     DdrB |= ((readUartData[GPIO_WRITE_OFST] >> 3) & 0b00010000); //Digital7 -> PTB4
-    Serial.print("DdrD :");
-    SerialHexPrint(DdrD);
-    Serial.print(", DdrB : ");
-    SerialHexPrint(DdrB);
+    DDRD = (DDRD & ~(0b11111000)) | DdrD;
+    DDRB = (DDRB & ~(0b00010011)) | DdrB;
+
+    Serial.print("DDRD :");
+    SerialHexPrint(DDRD);
+    Serial.print(", DDRB : ");
+    SerialHexPrint(DDRB);
     Serial.println("");
-    DDRD = DdrD;
-    DDRB = DdrB;
+  }
+}
+
+void handleReadGpio(uint8_t *readUartData, int len) {
+  if (len == 3) {
+    Serial.print("handleReadGpio :");
+    char DigitalPt = (PIND >> 3) & 0b00011111;  //PTD7...D3 -> Digital4..0
+    DigitalPt |= (PINB << 5) & 0b01100000; //PTB0, B1 -> Digital5,6
+    DigitalPt |= (PINB << 3) & 0b10000000; //PTB4 -> Digital7
+
+    //reply
+    sendData[sendCnt++] = DigitalPt;
+    sendUartData();
+
+    Serial.print("PIND :");
+    SerialHexPrint(PIND);
+    Serial.print(", PINB : ");
+    SerialHexPrint(PINB);
+    Serial.println("");
+  }
+}
+
+void handleReadIoDir(uint8_t *readUartData, int len) {
+  if (len == 3) {
+    Serial.print("handleReadIoDir :");
+    char DigitalPt = (DDRD >> 3) & 0b00011111;  //PTD7...D3 -> Digital4..0
+    DigitalPt |= (DDRB << 5) & 0b01100000; //PTB0, B1 -> Digital5,6
+    DigitalPt |= (DDRB << 3) & 0b10000000; //PTB4 -> Digital7
+
+    //reply
+    sendData[sendCnt++] = DigitalPt;
+    sendUartData();
+
+    Serial.print("DDRD :");
+    SerialHexPrint(DDRD);
+    Serial.print(", DDRB : ");
+    SerialHexPrint(DDRB);
+    Serial.println("");
   }
 }
 
@@ -244,6 +284,12 @@ void handleReadI2C(uint8_t *readUartData, int len) {
 
 void handleReadSequence(uint8_t *readUartData, int len) {
   switch(readUartData[1]){ // DATA0(Function No.)
+    case UART_CMD_FUNC_GPIO:
+      handleReadGpio(readUartData, len);;
+      break;
+    case UART_CMD_FUNC_IODIR:
+      handleReadIoDir(readUartData, len);;
+      break;
     case UART_CMD_FUNC_I2C1_READ:
       handleReadI2C(readUartData, len);;
       break;
@@ -287,10 +333,10 @@ void handleWriteI2C(uint8_t *readUartData, int len) {
 
 void handleWriteSequence(uint8_t *readUartData, int len) {
   switch(readUartData[1]){ // DATA0(Function No.)
-    case UART_CMD_FUNC_GPIO_WRITE:
+    case UART_CMD_FUNC_GPIO:
       handleWriteGpio(readUartData, len);;
       break;
-    case UART_CMD_FUNC_IODIR_WRITE:
+    case UART_CMD_FUNC_IODIR:
       handleWriteIoDir(readUartData, len);;
       break;
     case UART_CMD_FUNC_I2C1_WRITE:
