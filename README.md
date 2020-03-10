@@ -28,9 +28,10 @@ IO Expander Device Arduino Firmware with UART
 ### Sequences 
 <img width="80%" src="./img/TransferSequence.png" />  
 
- * Preamble is 0x5A(7bit), W = 0b0, R = 0b1  
- * Size is 8bit 
- * ACK : 0x06, NACK : 0x15  
+ * Func No. is 7bit
+ * W = 0b0, R = 0b1  
+ * 'Size' is 8bit 
+ * DLE : 0x10, STX : 0x20, ETX : 0x30, ACK : 0x06, NACK : 0x15  
 
 ### Function Maps 
 <img width="80%" src="./img/FunctionMaps.png" />  
