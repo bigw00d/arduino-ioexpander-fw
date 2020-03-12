@@ -15,6 +15,8 @@
 // main loop
 #define DELAY_MS 10
 
+#define WAIT_BODY_MS 30
+
 // target device:HTU21D(i2c temperature sensor)
 #define ADDR 0x40
 #define CMD_READ_TEMP_HOLD 0xe3
@@ -266,19 +268,24 @@ void handleReadI2C(uint8_t *readUartData, int len) {
       sendUartData();
     }
 
-    // //test
-    // if(readSize > 0) {
-    //   uint16_t tmp = readData[0];
-    //   tmp = tmp << 8;
-    //   tmp = tmp | readData[1];
-    //   tmp = tmp & 0xFFFC;
+    //test
+    if(readSize > 0) {
+      Serial.print("readData[] :");
+      SerialHexPrint(readData[0]);
+      Serial.print(", ");
+      SerialHexPrint(readData[1]);
+      Serial.println("");
+      uint16_t tmp = readData[0]; //msb
+      tmp = tmp << 8;
+      tmp = tmp | readData[1]; //lsb
+      tmp = tmp & 0xFFFC;
+    
+      float temp = -46.85 + (175.72 * tmp / 65536);
 
-    //   float temp = -46.85 + (175.72 * tmp / 65536);
-
-    //   Serial.print("Temperature: ");
-    //   Serial.print(temp, 1);
-    //   Serial.println(" C");
-    // }
+      Serial.print("Temperature: ");
+      Serial.print(temp, 1);
+      Serial.println(" C");
+    }
 
   }
   else {
@@ -288,6 +295,9 @@ void handleReadI2C(uint8_t *readUartData, int len) {
 
 void handleReadSequence(uint8_t *readUartData, int len) {
   uint8_t funcNo = (readUartData[DECODE_CMD_FUNCNUM_OFST] >> 1) & 0x7F;
+  Serial.print("handleReadSequence  funcNo:");
+  SerialHexPrint(funcNo);
+  Serial.println("");
   switch(funcNo){ // Function No.
     case UART_CMD_FUNC_GPIO:
       handleReadGpio(readUartData, len);;
@@ -326,7 +336,7 @@ void handleWriteI2C(uint8_t *readUartData, int len) {
       Serial.print("write_i2c_byte :");
       SerialHexPrint(readUartData[I2C_ADR_OFST]);
       Serial.print(", ");
-      SerialHexPrint(readUartData[I2C_ADR_OFST]);
+      SerialHexPrint(readUartData[I2C_DATA_OFST]);
       Serial.println("");
       write_i2c_byte(readUartData[I2C_ADR_OFST], readUartData[I2C_DATA_OFST]);
     }
@@ -338,6 +348,9 @@ void handleWriteI2C(uint8_t *readUartData, int len) {
 
 void handleWriteSequence(uint8_t *readUartData, int len) {
   uint8_t funcNo = (readUartData[DECODE_CMD_FUNCNUM_OFST] >> 1) & 0x7F;
+  Serial.print("handleWriteSequence  funcNo:");
+  SerialHexPrint(funcNo);
+  Serial.println("");
   switch(funcNo){ // Function No.
     case UART_CMD_FUNC_GPIO:
       handleWriteGpio(readUartData, len);;
@@ -359,43 +372,20 @@ void handleWriteSequence(uint8_t *readUartData, int len) {
 
 int decodeUartReceiveData(uint8_t *readUartData, int len) {
   int decodedReadCnt = 0;
-  int startOfst = 0;
-
-  Serial.print("decodeUartReceiveData  len:");
-  SerialHexPrint(len);
-  Serial.println("");
 
   // seek start code and remove DLE
-  for(int i=0; i<(len-1); i++) {
-    if( readUartData[i] == 0x10 ) { // DLE(escape seq code)
-      if( readUartData[i+1] == 0x02 ) { // STX
-        int src = i + 1; //position of STX
-        int dst = 0;
-        while(src < len) {
-          if(readUartData[src] == 0x10) { //detect DLE
-            src++; // skip escape seq(DLE)
-            if(readUartData[src] == 0x10) {
-              // 0x10, 0x10 -> put 0x10
-              readUartData[dst] = readUartData[src];
-              decodedReadCnt++;
-            }
-            else {
-              ; // skip (not DLE escape seq)
-            }
-          }
-          else {
-            readUartData[dst] = readUartData[src];
-            decodedReadCnt++;
-          }
-          src++;
-          dst++;
-        }
-      }
+  for(int i=0; i<len; i++) {
+    if( readUartData[i] == 0x02 ) { // STX
+      decodedReadCnt = (len - i);
+      break;
     }
   }
 
-  return decodedReadCnt;
+  Serial.print("decodeUartReceiveData  decodedReadCnt:");
+  SerialHexPrint(decodedReadCnt);
+  Serial.println("");
 
+  return decodedReadCnt;
 }
 
 void handleUartReceiveData(uint8_t *readUartData, int len) {
@@ -434,17 +424,63 @@ void sendUartData() {
   }
 }
 
+int readSTX(char *readData) {
+  int cnt = 0;
+  while (mySerial.available()) {
+    int n = mySerial.read();
+    if (n == 0x02) { //STX;
+      readData[cnt] = n;
+      cnt++;
+      break;
+    }
+  }
+  return cnt;
+}
+
+int readHeader(char *readData) {
+  int cnt = 0;
+  while (mySerial.available()) {
+    int n = mySerial.read();
+    readData[cnt] = n;
+    cnt++;
+  }
+  return cnt;
+}
+
+int readBody(char *readData) {
+  int cnt = 0;
+  while (mySerial.available()) {
+    int n = mySerial.read();
+    readData[cnt] = n;
+    cnt++;
+  }
+  return cnt;
+}
+
 /**
  * Task handling UART Command 
  */
 void uartTask() {
-  readCnt = 0;
-  while (mySerial.available()) {
-    int n = mySerial.read();
-    readUartData[readCnt] = n;
-    readCnt++;
+  readCnt = readSTX(&readUartData[0]);
+  if (readCnt > 0) {
+    readCnt += readHeader(&readUartData[readCnt]);
   }
+  if (readCnt == DECODE_CMD_HEAD_SIZE) {
+    //reply
+    sendData[sendCnt++] = 0x06; // send ACK
+    sendUartData();
+  }
+
   if(readCnt > 0) {
+
+    delay(WAIT_BODY_MS);
+    readCnt += readBody(&readUartData[readCnt]);
+    // while (mySerial.available()) {
+    //   int n = mySerial.read();
+    //   readUartData[readCnt] = n;
+    //   readCnt++;
+    // }
+
     #ifdef ENABLE_DEBUG_OUT
     // print received data
     for(int i=0; i<readCnt; ++i) {
@@ -473,6 +509,7 @@ void uartTask() {
     }
 
     readCnt = 0;
+
   }
 
 }

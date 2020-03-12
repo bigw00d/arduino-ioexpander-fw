@@ -29,13 +29,14 @@ enum UART_CMD_PHASE {
 };
 int uartCmdPhase = UART_CMD_PHASE_SW_RST;
 
-#define LED_CMD_I2C_WRITE_SAMPLE_SIZE 6
-#define LED_CMD_I2C_READ_SAMPLE_SIZE 5
-#define LED_CMD_I2C_READ_SEQ_SIZE 4
+#define LED_CMD_HEAD_SIZE 3
+
+#define LED_CMD_I2C_WRITE_SAMPLE_SIZE 5
+#define LED_CMD_I2C_READ_SAMPLE_SIZE 4
+#define LED_CMD_I2C_READ_SEQ_SIZE 3
 
 // Write I2C: CMD_SOFT_RESET
 const uint8_t i2CWriteSoftReset[LED_CMD_I2C_WRITE_SAMPLE_SIZE] = {
-  0x10,  // DLE
   0x02,  // STX
   ((0x12 << 1) + 0),               // Function :I2C1_WRITE+W
   2,                  // Size:2
@@ -45,7 +46,6 @@ const uint8_t i2CWriteSoftReset[LED_CMD_I2C_WRITE_SAMPLE_SIZE] = {
 
 // Write I2C: CMD_READ_TEMP_HOLD
 const uint8_t i2CWriteReadTemp[LED_CMD_I2C_WRITE_SAMPLE_SIZE] = {
-  0x10,  // DLE
   0x02,  // STX
   ((0x12 << 1) + 0),               // Function :I2C1_WRITE+W
   2,                  // Size:2
@@ -55,7 +55,6 @@ const uint8_t i2CWriteReadTemp[LED_CMD_I2C_WRITE_SAMPLE_SIZE] = {
 
 // Read I2C(Write Sequence)
 const uint8_t i2CReadReady[LED_CMD_I2C_READ_SAMPLE_SIZE] = {
-  0x10,  // DLE
   0x02,  // STX
   ((0x13 << 1) + 0),               // Function :I2C1_READ+W
   1,                  // Size:1
@@ -64,7 +63,6 @@ const uint8_t i2CReadReady[LED_CMD_I2C_READ_SAMPLE_SIZE] = {
 
 // Read I2C(Read Sequence): 3 byte
 const uint8_t i2CReadData[LED_CMD_I2C_READ_SEQ_SIZE] = {
-  0x10,  // DLE
   0x02,  // STX
   ((0x13 << 1) + 1),               // Function :I2C1_READ+R
   3,                  // Size:3
@@ -100,10 +98,7 @@ void SerialHexPrint(char n) {
   Serial.print((n & 0x000000FF), HEX);
 }
 
-bool waitReadI2CData = false;
-
-void loop() {
-
+void readUart() {
   while (mySerial.available()) {
     // Serial.write(mySerial.read());
     int n = mySerial.read();
@@ -118,6 +113,37 @@ void loop() {
       Serial.print(" ");
     }
     Serial.println(" :receive");
+  }
+}
+
+int sendUart(char *sendData, int len) {
+  int sentCnt = 0;
+  while(sentCnt < len) {
+    mySerial.write(sendData[sentCnt]);
+    sentCnt++;
+  }
+  return sentCnt;
+}
+  
+bool waitReadI2CData = false;
+
+void loop() {
+
+//  while (mySerial.available()) {
+//    // Serial.write(mySerial.read());
+//    int n = mySerial.read();
+//    readData[readCnt] = n;
+//    readCnt++;
+//  }
+  readUart();
+  if(readCnt > 0) {
+//    // print received data
+//    for(int i=0; i<readCnt; ++i) {
+//      int n = readData[i];
+//      SerialHexPrint(n);
+//      Serial.print(" ");
+//    }
+//    Serial.println(" :receive");
     readCnt = 0;
 
     if(waitReadI2CData) {
@@ -126,9 +152,15 @@ void loop() {
       if( (readData[posi] == 0x06) || (readData[posi] == 0x15) ) {
         posi++;
       }
-      uint16_t tmp = readData[posi];
+      Serial.print("readData[] :");
+      SerialHexPrint(readData[posi]);
+      Serial.print(", ");
+      SerialHexPrint(readData[posi+1]);
+      Serial.println("");
+      
+      uint16_t tmp = readData[posi]; //msb
       tmp = tmp << 8;
-      tmp = tmp | readData[posi+1];
+      tmp = tmp | readData[posi+1]; //lsb
       tmp = tmp & 0xFFFC;
     
       float temp = -46.85 + (175.72 * tmp / 65536);
@@ -173,11 +205,30 @@ void loop() {
 
   // send
   if(sendCnt > 0) {
-    for(int i=0; i<sendCnt; ++i) {
-      mySerial.write(sendData[i]);
+    int sentCnt = 0;
+    // send HEADER
+    sentCnt = sendUart(&sendData[0], LED_CMD_HEAD_SIZE);
+//    while(sentCnt < LED_CMD_HEAD_SIZE) {
+//      mySerial.write(sendData[sentCnt]);
+//      sentCnt++;
+//    }
+    delay(30);
+    readUart();
+    if(readCnt > 0) {
+      readCnt = 0;
+      if(readData[0] == 0x06) { // ACK
+        // send DATA
+        sentCnt += sendUart(&sendData[LED_CMD_HEAD_SIZE], (sendCnt - LED_CMD_HEAD_SIZE));
+//        while(sentCnt < sendCnt) {
+//          mySerial.write(sendData[sentCnt]);
+//          sentCnt++;
+//        }
+      }
+
     }
+
     // print sent data
-    for(int i=0; i<sendCnt; ++i) {
+    for(int i=0; i<sentCnt; ++i) {
       int n = sendData[i];
       SerialHexPrint(n);
       Serial.print(" ");
