@@ -1,4 +1,4 @@
-// UART Command Sample (I2C RW:SequenceVersion002)
+// UART Command Sample (I2C RW:SequenceVersion003)
 
 // D10(RX)  <-  TX
 // D11(TX)  ->  RX
