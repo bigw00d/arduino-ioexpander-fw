@@ -11,7 +11,9 @@ IO Expander Device Arduino Firmware with UART
 - Arduino IDE (Version: 1.8.5)
 
 ## Usage 
- - Use host sample application (see [arduino-ioexpander-lib(Arduino Library)](https://github.com/bigw00d/arduino-ioexpander-lib) or [android-ioexpander-host-sample(Android Sample App)](https://github.com/bigw00d/android-ioexpander-host-sample))
+ - Use host sample application  
+     - [arduino-ioexpander-lib(Arduino)](https://github.com/bigw00d/arduino-ioexpander-lib)
+     - [android-ioexpander-host-sample(Android)](https://github.com/bigw00d/android-ioexpander-host-sample))
 
 ## Description
 
